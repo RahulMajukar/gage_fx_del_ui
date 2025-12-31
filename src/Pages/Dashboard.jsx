@@ -14,6 +14,7 @@ import CalibrationManagerDashboard from "../Pages/DepartmentDash/calibration/Cal
 
 // NEW: Plant HOD Dashboard
 import PlantHODDashboard from "../Pages/DepartmentDash/PlantHODDashboard";
+import LabTechnicianDashboard from "./DepartmentDash/lab_tech/LabTechnicianDashboard";
 
 const Dashboard = () => {
   const user = JSON.parse(localStorage.getItem("user"));
@@ -88,6 +89,9 @@ const Dashboard = () => {
             departments={adminData.departments}
           />
         );
+
+      case "LAB_TECHNICIAN":
+        return <LabTechnicianDashboard />;
 
       case "PLANT_HOD":
         return <PlantHODDashboard />;

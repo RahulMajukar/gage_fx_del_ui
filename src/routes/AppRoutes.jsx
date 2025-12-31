@@ -12,6 +12,7 @@ import AdminDashboard from "../Pages/DepartmentDash/AdminDashboard";
 import ITAdminDashboard from "../Pages/DepartmentDash/ITAdminDashboard";
 import CalendarPage from "../Components/calendar/CalendarPage";
 import CalibrationDashboard from "../Pages/DepartmentDash/calibration/CalibrationDashboard";
+import LabTechnicianDashboard from "../Pages/DepartmentDash/lab_tech/LabTechnicianDashboard";
 
 
 export default function AppRoutes() {

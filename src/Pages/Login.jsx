@@ -140,6 +140,7 @@ export default function Login() {
                 <option value="OPERATOR">Operator</option>
                 <option value="PLANT_HOD">Plant HOD</option>
                 <option value="CALIBRATION_MANAGER">Calibration Manager</option>
+                <option value="LAB_TECHNICIAN">Lab Technician</option>
                 <option value="USER">User</option>
                 <option value="MANAGER">Manager</option>
               </select>

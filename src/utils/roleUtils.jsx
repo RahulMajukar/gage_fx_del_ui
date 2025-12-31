@@ -11,6 +11,8 @@ export const getDashboardPath = (user) => {
       return "/dashboard/operator";
     case "QA":
       return "/dashboard/qa";
+    case "LAB_TECHNICIAN":
+      return "/dashboard/lab-technician";
     default:
       return "/dashboard";
   }
@@ -26,6 +28,8 @@ export const getRoleDisplayName = (role) => {
       return "Operator";
     case "QA":
       return "Quality Analyst";
+    case "LAB_TECHNICIAN":
+      return "Lab Technician";
     default:
       return role || "Unknown Role";
   }
