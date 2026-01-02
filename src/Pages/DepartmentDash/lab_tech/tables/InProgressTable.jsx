@@ -2,26 +2,116 @@
 import { Calendar, CheckCircle, PlayCircle, Settings, User, Clock, AlertTriangle, Download } from "lucide-react";
 import { useState } from "react";
 import MarkCompletedForm from "./MarkCompletedForm";
+import { createCalibrationLabTechHistory, updateGageStatus } from "../calibrationService";
 
 function InProgressTable({
     stats,
     inProgressCalibrations,
     handleCompleteCalibration,
-    user }) {
+    user,
+    // Add these props if they come from parent component
+    setInProgressCalibrations,
+    setCompletedCalibrations,
+    selectedMachine
+}) {
     const [showCompleteForm, setShowCompleteForm] = useState(false);
     const [selectedCalibration, setSelectedCalibration] = useState(null);
     const [sortBy, setSortBy] = useState("startedDate");
     const [sortOrder, setSortOrder] = useState("desc");
+    const [loading, setLoading] = useState(false);
 
     const handleCompleteClick = (calibration) => {
         setSelectedCalibration(calibration);
         setShowCompleteForm(true);
     };
 
+    // Fixed handleFormSubmit function
     const handleFormSubmit = async (formData) => {
-        await handleCompleteCalibration(selectedCalibration.gageId, formData);
-        setShowCompleteForm(false);
-        setSelectedCalibration(null);
+        setLoading(true);
+        try {
+            console.log('Form data received:', formData);
+            console.log('Selected calibration:', selectedCalibration);
+            console.log('User:', user);
+            console.log('Selected machine:', selectedMachine);
+
+            // Prepare data for API - FIXED THE STRUCTURE
+            const calibrationData = {
+                gage: {
+                    id: selectedCalibration.originalGage?.id || selectedCalibration.id
+                },
+                technician: user?.name || formData.calibratedBy,
+                calibrationDate: formData.calibrationDate,
+                nextCalibrationDate: formData.nextCalibrationDate ||
+                    new Date(new Date().setMonth(new Date().getMonth() + 12)).toISOString().split('T')[0],
+                result: formData.result, // This should be like "PASSED", "FAILED" etc.
+                remarks: formData.remarks,
+                calibratedBy: formData.calibratedBy,
+                certificateNumber: formData.certificateNumber,
+                startedAt: new Date().toISOString(),
+                completedAt: new Date().toISOString(),
+                calibrationDuration: 2.5, // You can calculate this based on actual start time
+                calibrationMachine: selectedMachine ? {
+                    id: selectedMachine.id
+                } : null
+            };
+
+            console.log('Sending to API:', calibrationData);
+
+            // Save to calibration history
+            const response = await createCalibrationLabTechHistory(calibrationData);
+            console.log('API Response:', response);
+
+            // Update gage status
+            await updateGageStatus(
+                selectedCalibration.originalGage?.id || selectedCalibration.id,
+                'ACTIVE'
+            );
+
+            // If parent component provided these functions, use them
+            if (setInProgressCalibrations) {
+                setInProgressCalibrations(prev =>
+                    prev.filter(g => g.gageId !== selectedCalibration.gageId)
+                );
+            }
+
+            if (setCompletedCalibrations) {
+                setCompletedCalibrations(prev => [...prev, {
+                    ...selectedCalibration,
+                    status: 'completed',
+                    completedDate: formData.calibrationDate,
+                    result: formData.result,
+                    certificateNo: formData.certificateNumber,
+                    technician: formData.calibratedBy,
+                    remarks: formData.remarks
+                }]);
+            }
+
+            // Also call the parent handler if provided
+            if (handleCompleteCalibration) {
+                await handleCompleteCalibration(selectedCalibration.gageId, formData);
+            }
+
+            // Close the form
+            setShowCompleteForm(false);
+            setSelectedCalibration(null);
+
+            alert(`Calibration for ${selectedCalibration.gageId} completed successfully!`);
+
+        } catch (error) {
+            console.error('Failed to complete calibration:', error);
+            alert(`Failed to complete calibration: ${error.message}. Please try again.`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Simple form submit handler for backward compatibility
+    const handleSimpleFormSubmit = async (formData) => {
+        if (handleCompleteCalibration) {
+            await handleCompleteCalibration(selectedCalibration.gageId, formData);
+            setShowCompleteForm(false);
+            setSelectedCalibration(null);
+        }
     };
 
     const handleViewDetails = (calibration) => {
@@ -52,6 +142,7 @@ function InProgressTable({
     };
 
     const convertToCSV = (data) => {
+        if (!data || data.length === 0) return '';
         const headers = Object.keys(data[0]);
         const rows = data.map(row => headers.map(header => row[header]));
         return [headers, ...rows].map(row => row.join(',')).join('\n');
@@ -74,8 +165,14 @@ function InProgressTable({
 
         // Handle progress values (e.g., "75%" -> 75)
         if (sortBy === "progress") {
-            aValue = parseInt(aValue);
-            bValue = parseInt(bValue);
+            aValue = parseInt(aValue) || 0;
+            bValue = parseInt(bValue) || 0;
+        }
+
+        // Handle dates
+        if (sortBy === "startedDate" || sortBy === "dueDate") {
+            aValue = new Date(aValue).getTime();
+            bValue = new Date(bValue).getTime();
         }
 
         if (sortOrder === "asc") {
@@ -119,7 +216,8 @@ function InProgressTable({
                         </div>
                         <button
                             onClick={handleExport}
-                            className="flex items-center gap-2 px-4 py-2 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                            disabled={inProgressCalibrations.length === 0}
+                            className="flex items-center gap-2 px-4 py-2 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <Download size={16} />
                             Export
@@ -206,15 +304,6 @@ function InProgressTable({
                                                 <span className="text-gray-400">{getSortIcon("startedDate")}</span>
                                             </div>
                                         </th>
-                                        {/* <th 
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                      onClick={() => toggleSort("progress")}
-                    >
-                      <div className="flex items-center gap-1">
-                        Progress
-                        <span className="text-gray-400">{getSortIcon("progress")}</span>
-                      </div>
-                    </th> */}
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                             Actions
                                         </th>
@@ -294,6 +383,12 @@ function InProgressTable({
                                                     >
                                                         <CheckCircle size={16} />
                                                         Mark Complete
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleViewDetails(calibration)}
+                                                        className="px-3 py-1.5 border border-gray-300 text-sm rounded hover:bg-gray-50"
+                                                    >
+                                                        View Details
                                                     </button>
                                                 </div>
                                             </td>
@@ -421,6 +516,9 @@ function InProgressTable({
                                 onRetire={(gageId) => {
                                     alert(`Retire gage ${gageId} - This feature would retire the gage from service`);
                                 }}
+                                user={user}
+                                machine={selectedMachine}
+                                loading={loading}
                             />
                         </div>
                     </div>

@@ -27,6 +27,7 @@ import {
     updateGageStatus
 } from "./calibrationService";
 import InProgressTable from "./tables/InProgressTable";
+import CompletedTable from "./tables/CompletedTable";
 
 function LabTechnicianDashboard({ user }) {
     const [scheduledGages, setScheduledGages] = useState([]);
@@ -536,103 +537,6 @@ function LabTechnicianDashboard({ user }) {
         </div>
     );
 
-    // Render completed calibrations
-    const renderCompletedCalibrations = () => (
-        <div className="space-y-4">
-            <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                    <CheckCircle size={20} className="text-green-600" />
-                    Completed Calibrations
-                </h3>
-                <div className="flex gap-2">
-                    <button className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
-                        <Filter size={14} />
-                        Filter
-                    </button>
-                    <button className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
-                        <Download size={14} />
-                        Export
-                    </button>
-                </div>
-            </div>
-
-            {completedCalibrations.length === 0 ? (
-                <div className="text-center py-8 bg-white rounded-lg border border-gray-200">
-                    <CheckCircle size={48} className="mx-auto text-gray-400 mb-3" />
-                    <h3 className="text-gray-900 font-medium">No completed calibrations</h3>
-                    <p className="text-gray-500 text-sm mt-1">Complete a calibration to see it here</p>
-                </div>
-            ) : (
-                <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gage ID</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Completed Date</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Technician</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Result</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Certificate</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                            {completedCalibrations.map((calibration) => (
-                                <tr key={calibration.id} className="hover:bg-gray-50">
-                                    <td className="px-4 py-3">
-                                        <div>
-                                            <span className="font-medium text-gray-900">{calibration.gageId}</span>
-                                            <p className="text-xs text-gray-500">{calibration.name}</p>
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex items-center gap-1">
-                                            <Calendar size={14} className="text-gray-400" />
-                                            <span className="text-gray-700">{calibration.completedDate}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex items-center gap-1">
-                                            <User size={14} className="text-gray-400" />
-                                            <span className="text-gray-700">{calibration.technician}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${calibration.result === 'Pass'
-                                            ? 'bg-green-100 text-green-800'
-                                            : 'bg-red-100 text-red-800'
-                                            }`}>
-                                            {calibration.result === 'Pass' ? (
-                                                <CheckCircle size={12} className="mr-1" />
-                                            ) : (
-                                                <AlertTriangle size={12} className="mr-1" />
-                                            )}
-                                            {calibration.result}
-                                        </span>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <button className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1">
-                                            <FileText size={14} />
-                                            {calibration.certificateNo}
-                                        </button>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex gap-2">
-                                            <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100">
-                                                View
-                                            </button>
-                                            <button className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
-                                                Reprint
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            )}
-        </div>
-    );
 
     // Show content based on active tab
     const renderTabContent = () => {
@@ -651,7 +555,7 @@ function LabTechnicianDashboard({ user }) {
             case 'pending':
                 return renderPendingCalibrations();
             case 'completed':
-                return renderCompletedCalibrations();
+                return (<CompletedTable completedCalibrations={completedCalibrations} />);
             default:
                 return renderScheduledGages();
         }

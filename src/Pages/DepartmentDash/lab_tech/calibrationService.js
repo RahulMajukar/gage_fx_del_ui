@@ -155,3 +155,144 @@ export const getStatusBadge = (status) => {
   const config = statusMap[status] || { color: 'bg-gray-100 text-gray-800', icon: '?', text: status };
   return config;
 };
+
+
+// Create calibration history record
+export const createCalibrationLabTechHistory = async (calibrationData) => {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/calibration-manager/lab-calibration-history`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+      body: JSON.stringify(calibrationData),
+    });
+    
+    if (!response.ok) throw new Error('Failed to create calibration history');
+    return await response.json();
+  } catch (error) {
+    console.error('Error creating calibration history:', error);
+    throw error;
+  }
+};
+
+// Get calibration history by gage ID
+export const getCalibrationHistoryByGage = async (gageId) => {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/calibration-manager/lab-calibration-history/gage/${gageId}`, {
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+    });
+    
+    if (!response.ok) throw new Error('Failed to fetch calibration history');
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching calibration history:', error);
+    throw error;
+  }
+};
+
+// Helper function to prepare data for your API
+export const prepareCalibrationData = (gage, formData, user, machine) => {
+  // Calculate calibration duration (assuming it started 2 hours ago)
+  const startedAt = new Date();
+  startedAt.setHours(startedAt.getHours() - 2);
+  const completedAt = new Date();
+  const durationInHours = (completedAt - startedAt) / (1000 * 60 * 60);
+  
+  // Map result values to match your backend enum
+  const resultMap = {
+    'PASS': 'PASSED',
+    'FAIL': 'FAILED',
+    'ADJUSTED': 'ADJUSTED',
+    'OUT_OF_TOLERANCE': 'OUT_OF_TOLERANCE',
+    'OBSOLETE': 'OBSOLETE'
+  };
+  
+  return {
+    gage: {
+      id: gage.originalGage?.id || gage.id
+    },
+    technician: user?.name || formData.calibratedBy || 'Technician',
+    calibrationDate: formData.calibrationDate,
+    nextCalibrationDate: formData.nextCalibrationDate,
+    result: resultMap[formData.result] || 'PASSED',
+    remarks: formData.remarks,
+    calibratedBy: formData.calibratedBy,
+    certificateNumber: formData.certificateNumber,
+    startedAt: startedAt.toISOString(),
+    completedAt: completedAt.toISOString(),
+    calibrationDuration: parseFloat(durationInHours.toFixed(2)),
+    calibrationMachine: machine ? {
+      id: machine.id
+    } : null
+  };
+};
+
+// Add to your calibrationService.js
+// Get all completed calibrations from API
+export const fetchCompletedCalibrations = async () => {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/calibration-manager/lab-calibration-history`, {
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+    });
+    
+    if (!response.ok) throw new Error('Failed to fetch completed calibrations');
+    const data = await response.json();
+    
+    // Extract data array from response
+    return data.data || [];
+  } catch (error) {
+    console.error('Error fetching completed calibrations:', error);
+    throw error;
+  }
+};
+
+// Get gage details for a specific gage ID
+export const fetchGageDetails = async (gageId) => {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/gages/${gageId}`, {
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+    });
+    
+    if (!response.ok) throw new Error('Failed to fetch gage details');
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching gage details:', error);
+    return null;
+  }
+};
+
+// Format date to readable format
+export const formatDate = (dateString) => {
+  if (!dateString) return 'N/A';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+};
+
+// Format date with time
+export const formatDateTime = (dateString) => {
+  if (!dateString) return 'N/A';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};

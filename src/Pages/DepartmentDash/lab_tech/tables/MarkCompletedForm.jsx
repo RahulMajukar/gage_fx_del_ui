@@ -1,16 +1,19 @@
 // src/components/MarkCompletedForm.jsx
-import React, { useState } from "react";
-import { X, CheckCircle, AlertTriangle, Settings, Save, Trash2 } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { X, CheckCircle, AlertTriangle, Settings, Save, Trash2, Clock, Calendar, User } from "lucide-react";
+import { createCalibrationLabTechHistory, updateGageStatus } from "../calibrationService";
 
 function MarkCompletedForm({
   gage,
   onClose,
   onSubmit,
   onRetire,
-  loading = false
+  loading = false,
+  user,
+  machine
 }) {
   const [formData, setFormData] = useState({
-    result: "PASS",
+    result: "PASSED",
     calibratedBy: "",
     remarks: "",
     certificateNumber: `CERT-${Math.floor(Math.random() * 10000)}-${new Date().getFullYear()}`,
@@ -20,6 +23,18 @@ function MarkCompletedForm({
     environmentalConditions: "23°C, 50% RH",
     measurementUncertainty: "±0.001mm"
   });
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Set default calibratedBy to current user
+  useEffect(() => {
+    if (user?.name) {
+      setFormData(prev => ({
+        ...prev,
+        calibratedBy: user.name
+      }));
+    }
+  }, [user]);
 
   // Calculate next calibration date (default: 12 months from now)
   const calculateNextCalibrationDate = () => {
@@ -36,13 +51,13 @@ function MarkCompletedForm({
       [name]: value
     }));
 
-    // Auto-set next calibration date when result is selected
-    if (name === 'result' && value === 'PASS') {
+    // Auto-set next calibration date when result is PASSED
+    if (name === 'result' && value === 'PASSED') {
       setFormData(prev => ({
         ...prev,
         nextCalibrationDate: calculateNextCalibrationDate()
       }));
-    } else if (name === 'result' && value !== 'PASS') {
+    } else if (name === 'result' && value !== 'PASSED') {
       setFormData(prev => ({
         ...prev,
         nextCalibrationDate: ""
@@ -51,21 +66,69 @@ function MarkCompletedForm({
   };
 
   // Handle form submission
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onSubmit(formData);
+    setIsSubmitting(true);
+    
+    try {
+      // Prepare data for the API
+      const calibrationData = {
+        gage: {
+          id: gage.originalGage?.id || gage.id
+        },
+        technician: user?.name || formData.calibratedBy || 'Technician',
+        calibrationDate: formData.calibrationDate,
+        nextCalibrationDate: formData.nextCalibrationDate || calculateNextCalibrationDate(),
+        result: formData.result,
+        remarks: formData.remarks,
+        calibratedBy: formData.calibratedBy,
+        certificateNumber: formData.certificateNumber,
+        startedAt: new Date().toISOString(), // Started now (you might want to adjust this)
+        completedAt: new Date().toISOString(),
+        calibrationDuration: 2.5, // Default 2.5 hours, adjust as needed
+        calibrationMachine: machine ? {
+          id: machine.id
+        } : null
+      };
+
+      console.log('Submitting calibration data:', calibrationData);
+
+      // Call the API to save calibration history
+      const response = await createCalibrationLabTechHistory(calibrationData);
+      
+      // Update gage status to ACTIVE
+      await updateGageStatus(gage.originalGage?.id || gage.id, 'ACTIVE');
+      
+      // Call the parent onSubmit handler if provided
+      if (onSubmit) {
+        onSubmit(response);
+      }
+      
+      // Close the form
+      onClose();
+      
+      alert(`Calibration for ${gage.gageId} marked as complete! Certificate: ${formData.certificateNumber}`);
+      
+    } catch (error) {
+      console.error('Failed to submit calibration:', error);
+      alert('Failed to submit calibration. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Handle retire button
   const handleRetire = () => {
     if (window.confirm(`Are you sure you want to retire ${gage?.gageId}? This action cannot be undone.`)) {
-      onRetire(gage?.originalGage?.id);
+      if (onRetire) {
+        onRetire(gage?.originalGage?.id || gage.id);
+      }
     }
   };
 
   const resultOptions = [
-    { value: "PASS", label: "Pass", color: "text-green-600", bgColor: "bg-green-50" },
-    { value: "FAIL", label: "Failed", color: "text-red-600", bgColor: "bg-red-50" },
+    { value: "PASSED", label: "Pass", color: "text-green-600", bgColor: "bg-green-50" },
+    { value: "FAILED", label: "Failed", color: "text-red-600", bgColor: "bg-red-50" },
     { value: "ADJUSTED", label: "Adjusted", color: "text-yellow-600", bgColor: "bg-yellow-50" },
     { value: "OUT_OF_TOLERANCE", label: "Out of Tolerance", color: "text-orange-600", bgColor: "bg-orange-50" },
     { value: "OBSOLETE", label: "Obsolete", color: "text-gray-600", bgColor: "bg-gray-50" }
@@ -73,8 +136,8 @@ function MarkCompletedForm({
 
   const getResultIcon = (result) => {
     switch (result) {
-      case "PASS": return <CheckCircle className="text-green-500" size={18} />;
-      case "FAIL": return <AlertTriangle className="text-red-500" size={18} />;
+      case "PASSED": return <CheckCircle className="text-green-500" size={18} />;
+      case "FAILED": return <AlertTriangle className="text-red-500" size={18} />;
       case "ADJUSTED": return <Settings className="text-yellow-500" size={18} />;
       default: return <AlertTriangle className="text-orange-500" size={18} />;
     }
@@ -91,11 +154,16 @@ function MarkCompletedForm({
             <p className="text-sm text-gray-500">
               {gage?.gageId} • {gage?.name}
             </p>
+            {machine && (
+              <p className="text-xs text-gray-400 mt-1">
+                Machine: {machine.machineName} ({machine.instrumentCode})
+              </p>
+            )}
           </div>
         </div>
         <button
           onClick={onClose}
-          disabled={loading}
+          disabled={isSubmitting}
           className="p-2 rounded-lg hover:bg-gray-100 disabled:opacity-50"
         >
           <X size={20} className="text-gray-500" />
@@ -105,11 +173,36 @@ function MarkCompletedForm({
       {/* Form */}
       <form onSubmit={handleSubmit} className="p-6">
         <div className="space-y-6">
+          {/* Timeline Info */}
+          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Clock className="text-blue-600" size={18} />
+                <span className="text-sm font-medium text-blue-700">Calibration Timeline</span>
+              </div>
+              <span className="text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
+                Started: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
+              <div className="flex items-center gap-2">
+                <Calendar size={14} className="text-blue-500" />
+                <span className="text-gray-600">Today's Date:</span>
+                <span className="font-medium">{new Date().toLocaleDateString()}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <User size={14} className="text-blue-500" />
+                <span className="text-gray-600">Technician:</span>
+                <span className="font-medium">{user?.name || 'You'}</span>
+              </div>
+            </div>
+          </div>
+
           {/* Calibration Details */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Certificate Number
+                Certificate Number *
               </label>
               <input
                 type="text"
@@ -119,11 +212,12 @@ function MarkCompletedForm({
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 required
               />
+              <p className="text-xs text-gray-500 mt-1">Auto-generated certificate number</p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Calibration Date
+                Calibration Date *
               </label>
               <input
                 type="date"
@@ -172,10 +266,10 @@ function MarkCompletedForm({
                 value={formData.nextCalibrationDate}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                disabled={formData.result !== 'PASS'}
-                required={formData.result === 'PASS'}
+                disabled={formData.result !== 'PASSED'}
+                required={formData.result === 'PASSED'}
               />
-              {formData.result !== 'PASS' && (
+              {formData.result !== 'PASSED' && (
                 <p className="text-xs text-gray-500 mt-1">
                   Next calibration date not required for failed results
                 </p>
@@ -195,33 +289,7 @@ function MarkCompletedForm({
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 required
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Calibration Standard Used
-              </label>
-              <input
-                type="text"
-                name="calibrationStandardUsed"
-                value={formData.calibrationStandardUsed}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Environmental Conditions
-              </label>
-              <input
-                type="text"
-                name="environmentalConditions"
-                value={formData.environmentalConditions}
-                onChange={handleChange}
-                placeholder="e.g., 23°C, 50% RH"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+              <p className="text-xs text-gray-500 mt-1">Person who performed the calibration</p>
             </div>
 
             <div className="md:col-span-2">
@@ -240,32 +308,35 @@ function MarkCompletedForm({
           </div>
 
           {/* Gage Information Summary */}
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <h4 className="font-medium text-gray-700 mb-2">Gage Information</h4>
-            <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+            <h4 className="font-medium text-gray-700 mb-3 flex items-center gap-2">
+              <Settings size={16} className="text-gray-500" />
+              Gage Information
+            </h4>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
               <div>
-                <span className="text-gray-500">Serial Number:</span>
-                <span className="font-medium ml-2">{gage?.gageId}</span>
+                <span className="text-gray-500 block mb-1">Serial Number:</span>
+                <span className="font-medium text-gray-900">{gage?.gageId}</span>
               </div>
               <div>
-                <span className="text-gray-500">Model:</span>
-                <span className="font-medium ml-2">{gage?.modelNumber || 'N/A'}</span>
+                <span className="text-gray-500 block mb-1">Model:</span>
+                <span className="font-medium text-gray-900">{gage?.modelNumber || 'N/A'}</span>
               </div>
               <div>
-                <span className="text-gray-500">Type:</span>
-                <span className="font-medium ml-2">{gage?.name}</span>
+                <span className="text-gray-500 block mb-1">Type:</span>
+                <span className="font-medium text-gray-900">{gage?.name}</span>
               </div>
               <div>
-                <span className="text-gray-500">Subtype:</span>
-                <span className="font-medium ml-2">{gage?.type}</span>
+                <span className="text-gray-500 block mb-1">Subtype:</span>
+                <span className="font-medium text-gray-900">{gage?.type}</span>
               </div>
               <div>
-                <span className="text-gray-500">Measurement Range:</span>
-                <span className="font-medium ml-2">{gage?.measurementRange || 'N/A'}</span>
+                <span className="text-gray-500 block mb-1">Measurement Range:</span>
+                <span className="font-medium text-gray-900">{gage?.measurementRange || 'N/A'}</span>
               </div>
               <div>
-                <span className="text-gray-500">Accuracy:</span>
-                <span className="font-medium ml-2">{gage?.accuracy || 'N/A'}</span>
+                <span className="text-gray-500 block mb-1">Accuracy:</span>
+                <span className="font-medium text-gray-900">{gage?.accuracy || 'N/A'}</span>
               </div>
             </div>
           </div>
@@ -276,7 +347,7 @@ function MarkCompletedForm({
           <button
             type="button"
             onClick={handleRetire}
-            disabled={loading}
+            disabled={isSubmitting}
             className="px-4 py-2 text-sm font-medium text-red-600 border border-red-300 rounded-lg hover:bg-red-50 disabled:opacity-50 flex items-center gap-2"
           >
             <Trash2 size={16} />
@@ -287,25 +358,25 @@ function MarkCompletedForm({
             <button
               type="button"
               onClick={onClose}
-              disabled={loading}
+              disabled={isSubmitting}
               className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={isSubmitting}
               className="px-6 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
             >
-              {loading ? (
+              {isSubmitting ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Processing...
+                  Saving...
                 </>
               ) : (
                 <>
                   <Save size={16} />
-                  Mark as Complete
+                  Save & Complete
                 </>
               )}
             </button>
