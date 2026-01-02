@@ -26,6 +26,7 @@ import {
     getStatusBadge,
     updateGageStatus
 } from "./calibrationService";
+import InProgressTable from "./tables/InProgressTable";
 
 function LabTechnicianDashboard({ user }) {
     const [scheduledGages, setScheduledGages] = useState([]);
@@ -47,13 +48,13 @@ function LabTechnicianDashboard({ user }) {
         setLoading(true);
         try {
             console.log("Fetching dashboard data...");
-            
+
             // 1. Get scheduled gages (gages that need calibration)
             const gagesNeedingCalibration = await fetchGagesNeedingCalibration();
             console.log("Gages needing calibration:", gagesNeedingCalibration);
             const scheduled = gagesNeedingCalibration.map(apiGageToScheduled);
             setScheduledGages(scheduled);
-            
+
             // 2. Get in-progress calibrations (gages with status IN_USE)
             const inProgressData = await fetchGagesByStatus('IN_USE');
             const inProgress = inProgressData.map(gage => ({
@@ -72,7 +73,7 @@ function LabTechnicianDashboard({ user }) {
                 originalGage: gage
             }));
             setInProgressCalibrations(inProgress);
-            
+
             // 3. Get pending calibrations (gages with overdue calibration)
             const allGages = await fetchAllGages();
             const today = new Date();
@@ -96,7 +97,7 @@ function LabTechnicianDashboard({ user }) {
                     originalGage: gage
                 }));
             setPendingCalibrations(pending);
-            
+
             // 4. Get completed calibrations (mock data for now)
             const completed = [
                 {
@@ -127,7 +128,7 @@ function LabTechnicianDashboard({ user }) {
                 }
             ];
             setCompletedCalibrations(completed);
-            
+
             // 5. Get available calibration machines
             const machines = await fetchCalibrationMachines();
             const instruments = machines.map(machine => ({
@@ -142,10 +143,10 @@ function LabTechnicianDashboard({ user }) {
                 originalMachine: machine
             }));
             setAvailableInstruments(instruments);
-            
+
             console.log("Data loaded successfully!");
             setLoading(false);
-            
+
         } catch (error) {
             console.error("Error loading data:", error);
             // If API fails, use mock data
@@ -157,7 +158,7 @@ function LabTechnicianDashboard({ user }) {
     // Fallback mock data if API fails
     const loadMockData = () => {
         console.log("Using mock data...");
-        
+
         const mockScheduled = [
             {
                 id: 2,
@@ -196,7 +197,7 @@ function LabTechnicianDashboard({ user }) {
                 originalGage: { id: 8, serialNumber: '330' }
             }
         ];
-        
+
         const mockInProgress = [
             {
                 id: 6,
@@ -214,7 +215,7 @@ function LabTechnicianDashboard({ user }) {
                 originalGage: { id: 6, serialNumber: '6769micro' }
             }
         ];
-        
+
         const mockPending = [
             {
                 id: 4,
@@ -230,7 +231,7 @@ function LabTechnicianDashboard({ user }) {
                 originalGage: { id: 4, serialNumber: '001' }
             }
         ];
-        
+
         const mockInstruments = [
             {
                 id: '1',
@@ -243,7 +244,7 @@ function LabTechnicianDashboard({ user }) {
                 currentUser: null
             }
         ];
-        
+
         setScheduledGages(mockScheduled);
         setInProgressCalibrations(mockInProgress);
         setPendingCalibrations(mockPending);
@@ -270,7 +271,7 @@ function LabTechnicianDashboard({ user }) {
         scheduled: scheduledGages.length,
         inProgress: inProgressCalibrations.length,
         pending: pendingCalibrations.length,
-        completedToday: completedCalibrations.filter(g => 
+        completedToday: completedCalibrations.filter(g =>
             g.completedDate === new Date().toISOString().split('T')[0]
         ).length,
         availableInstruments: availableInstruments.filter(i => i.status === 'available').length
@@ -283,7 +284,7 @@ function LabTechnicianDashboard({ user }) {
             try {
                 // Update status in backend
                 await updateGageStatus(gage.originalGage.id, 'IN_USE');
-                
+
                 // Update local state
                 setScheduledGages(prev => prev.filter(g => g.gageId !== gageId));
                 setInProgressCalibrations(prev => [...prev, {
@@ -293,7 +294,7 @@ function LabTechnicianDashboard({ user }) {
                     technician: user?.name || 'You',
                     progress: '0%'
                 }]);
-                
+
                 alert(`Started calibration for ${gageId}`);
             } catch (error) {
                 console.error('Failed to start calibration:', error);
@@ -309,7 +310,7 @@ function LabTechnicianDashboard({ user }) {
             try {
                 // Update status in backend
                 await updateGageStatus(gage.originalGage.id, 'ACTIVE');
-                
+
                 // Update local state
                 setInProgressCalibrations(prev => prev.filter(g => g.gageId !== gageId));
                 setCompletedCalibrations(prev => [...prev, {
@@ -319,7 +320,7 @@ function LabTechnicianDashboard({ user }) {
                     result: Math.random() > 0.2 ? 'Pass' : 'Fail',
                     certificateNo: `CERT-${Math.floor(Math.random() * 1000)}-${new Date().getFullYear()}`
                 }]);
-                
+
                 alert(`Completed calibration for ${gageId}`);
             } catch (error) {
                 console.error('Failed to complete calibration:', error);
@@ -370,7 +371,7 @@ function LabTechnicianDashboard({ user }) {
                 </h3>
                 <span className="text-sm text-gray-500">{stats.scheduled} items</span>
             </div>
-            
+
             {scheduledGages.length === 0 ? (
                 <div className="text-center py-8 bg-white rounded-lg border border-gray-200">
                     <CalendarCheck size={48} className="mx-auto text-gray-400 mb-3" />
@@ -416,8 +417,8 @@ function LabTechnicianDashboard({ user }) {
                                     </td>
                                     <td className="px-4 py-3">
                                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${gage.priority === 'High' ? 'bg-red-100 text-red-800' :
-                                                gage.priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
-                                                    'bg-green-100 text-green-800'
+                                            gage.priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
+                                                'bg-green-100 text-green-800'
                                             }`}>
                                             {gage.priority}
                                         </span>
@@ -450,90 +451,7 @@ function LabTechnicianDashboard({ user }) {
     );
 
     // Render in-progress calibrations
-    const renderInProgressCalibrations = () => (
-        <div className="space-y-4">
-            <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                    <PlayCircle size={20} className="text-yellow-600" />
-                    In-Progress Calibrations
-                </h3>
-                <span className="text-sm text-gray-500">{stats.inProgress} active</span>
-            </div>
-            
-            {inProgressCalibrations.length === 0 ? (
-                <div className="text-center py-8 bg-white rounded-lg border border-gray-200">
-                    <PlayCircle size={48} className="mx-auto text-gray-400 mb-3" />
-                    <h3 className="text-gray-900 font-medium">No active calibrations</h3>
-                    <p className="text-gray-500 text-sm mt-1">Start a calibration from the Scheduled tab</p>
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {inProgressCalibrations.map((calibration) => (
-                        <div key={calibration.id} className="bg-white rounded-lg shadow border border-gray-200 p-4">
-                            <div className="flex justify-between items-start mb-3">
-                                <div>
-                                    <h4 className="font-semibold text-gray-800">{calibration.name}</h4>
-                                    <p className="text-sm text-gray-500">{calibration.gageId}</p>
-                                </div>
-                                <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full font-medium">
-                                    In Progress
-                                </span>
-                            </div>
-                            <div className="space-y-3 mb-4">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-sm text-gray-500 flex items-center gap-1">
-                                        <Settings size={14} />
-                                        Instrument:
-                                    </span>
-                                    <span className="text-sm font-medium">{calibration.instrumentUsed}</span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <span className="text-sm text-gray-500 flex items-center gap-1">
-                                        <User size={14} />
-                                        Technician:
-                                    </span>
-                                    <span className="text-sm font-medium">{calibration.technician}</span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <span className="text-sm text-gray-500">Progress:</span>
-                                    <div className="w-24 bg-gray-200 rounded-full h-2">
-                                        <div
-                                            className="bg-green-600 h-2 rounded-full transition-all duration-300"
-                                            style={{ width: calibration.progress }}
-                                        ></div>
-                                    </div>
-                                    <span className="text-sm font-medium ml-2">{calibration.progress}</span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <span className="text-sm text-gray-500 flex items-center gap-1">
-                                        <Calendar size={14} />
-                                        Started:
-                                    </span>
-                                    <span className="text-sm font-medium">{calibration.startedDate}</span>
-                                </div>
-                            </div>
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => handleCompleteCalibration(calibration.gageId)}
-                                    className="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-                                >
-                                    <CheckCircle size={16} />
-                                    Mark Complete
-                                </button>
-                                <button
-                                    onClick={() => alert(`View details for ${calibration.gageId}`)}
-                                    className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                                >
-                                    <FileText size={16} />
-                                    Details
-                                </button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
+
 
     // Render pending calibrations
     const renderPendingCalibrations = () => (
@@ -545,7 +463,7 @@ function LabTechnicianDashboard({ user }) {
                 </h3>
                 <span className="text-sm text-gray-500">{stats.pending} awaiting resources</span>
             </div>
-            
+
             {pendingCalibrations.length === 0 ? (
                 <div className="text-center py-8 bg-white rounded-lg border border-gray-200">
                     <AlertTriangle size={48} className="mx-auto text-gray-400 mb-3" />
@@ -637,7 +555,7 @@ function LabTechnicianDashboard({ user }) {
                     </button>
                 </div>
             </div>
-            
+
             {completedCalibrations.length === 0 ? (
                 <div className="text-center py-8 bg-white rounded-lg border border-gray-200">
                     <CheckCircle size={48} className="mx-auto text-gray-400 mb-3" />
@@ -680,8 +598,8 @@ function LabTechnicianDashboard({ user }) {
                                     </td>
                                     <td className="px-4 py-3">
                                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${calibration.result === 'Pass'
-                                                ? 'bg-green-100 text-green-800'
-                                                : 'bg-red-100 text-red-800'
+                                            ? 'bg-green-100 text-green-800'
+                                            : 'bg-red-100 text-red-800'
                                             }`}>
                                             {calibration.result === 'Pass' ? (
                                                 <CheckCircle size={12} className="mr-1" />
@@ -722,7 +640,14 @@ function LabTechnicianDashboard({ user }) {
             case 'scheduled':
                 return renderScheduledGages();
             case 'in-progress':
-                return renderInProgressCalibrations();
+                return (
+                    <InProgressTable
+                        stats={stats}
+                        inProgressCalibrations={inProgressCalibrations}
+                        handleCompleteCalibration={handleCompleteCalibration}
+                    />
+                );
+
             case 'pending':
                 return renderPendingCalibrations();
             case 'completed':
@@ -826,8 +751,8 @@ function LabTechnicianDashboard({ user }) {
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
                                 className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${activeTab === tab.id
-                                        ? "border-blue-500 text-blue-600"
-                                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                                    ? "border-blue-500 text-blue-600"
+                                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                                     }`}
                             >
                                 <tab.icon size={16} />
