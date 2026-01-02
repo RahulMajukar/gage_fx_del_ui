@@ -108,7 +108,7 @@ const Dashboard = () => {
 
       {/* Fallback: No modules assigned (for non-admin roles) */}
       {noModulesAssigned &&
-        !["ADMIN", "IT_ADMIN", "CALIBRATION_MANAGER", "PLANT_HOD"].includes(role) && (
+        !["ADMIN", "IT_ADMIN", "CALIBRATION_MANAGER", "PLANT_HOD", "LAB_TECHNICIAN"].includes(role) && (
           <div className="mt-6 p-4 bg-yellow-50 border-l-4 border-yellow-500 text-yellow-700">
             ⚠️ No modules assigned for your role. Please contact your administrator.
           </div>

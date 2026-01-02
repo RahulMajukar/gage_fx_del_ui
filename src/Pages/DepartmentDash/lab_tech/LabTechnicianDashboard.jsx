@@ -1,6 +1,5 @@
 // src/Pages/DepartmentDash/LabTechnicianDashboard.jsx
 import { useState, useEffect } from "react";
-// Lucide Icons
 import {
     CalendarCheck,
     PlayCircle,
@@ -17,9 +16,16 @@ import {
     Filter,
     Download
 } from "lucide-react";
-
-// Import the Sidebar component
 import MachineListSidebar from "./MachineListSidebar";
+import {
+    fetchAllGages,
+    fetchGagesByStatus,
+    fetchGagesNeedingCalibration,
+    fetchCalibrationMachines,
+    apiGageToScheduled,
+    getStatusBadge,
+    updateGageStatus
+} from "./calibrationService";
 
 function LabTechnicianDashboard({ user }) {
     const [scheduledGages, setScheduledGages] = useState([]);
@@ -31,282 +37,298 @@ function LabTechnicianDashboard({ user }) {
     const [activeTab, setActiveTab] = useState("scheduled");
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
-    // Mock data for scheduled gages
-    const mockScheduledGages = [
-        {
-            id: 1,
-            gageId: 'GAGE-001',
-            name: 'Digital Micrometer',
-            type: 'Length',
-            instrumentRequired: 'Master Calibrator',
-            instrumentId: 'INST-001',
-            calibrationType: 'inhouse',
-            scheduledDate: '2024-01-25',
-            dueDate: '2024-02-25',
-            priority: 'High',
-            status: 'scheduled',
-            location: 'Store Room A',
-            requestedBy: 'Production Dept',
-            requestDate: '2024-01-20',
-            technician: null
-        },
-        {
-            id: 2,
-            gageId: 'GAGE-002',
-            name: 'Pressure Gauge',
-            type: 'Pressure',
-            instrumentRequired: 'Pressure Standard',
-            instrumentId: 'INST-002',
-            calibrationType: 'inhouse',
-            scheduledDate: '2024-01-26',
-            dueDate: '2024-02-26',
-            priority: 'Medium',
-            status: 'scheduled',
-            location: 'Lab Storage',
-            requestedBy: 'Quality Dept',
-            requestDate: '2024-01-21',
-            technician: null
-        },
-        {
-            id: 3,
-            gageId: 'GAGE-003',
-            name: 'Temperature Sensor',
-            type: 'Temperature',
-            instrumentRequired: 'Temperature Bath',
-            instrumentId: 'INST-003',
-            calibrationType: 'inhouse',
-            scheduledDate: '2024-01-27',
-            dueDate: '2024-02-27',
-            priority: 'Low',
-            status: 'scheduled',
-            location: 'Calibration Lab',
-            requestedBy: 'Maintenance',
-            requestDate: '2024-01-22',
-            technician: null
-        },
-    ];
-
-    // Mock data for in-progress calibrations
-    const mockInProgressCalibrations = [
-        {
-            id: 6,
-            gageId: 'GAGE-006',
-            name: 'Digital Caliper',
-            type: 'Length',
-            instrumentUsed: 'Master Calibrator',
-            instrumentId: 'INST-001',
-            calibrationType: 'inhouse',
-            startedDate: '2024-01-24',
-            technician: user?.name || 'You',
-            progress: '75%',
-            estimatedCompletion: '2024-01-25 14:00',
-            status: 'in-progress'
-        },
-        {
-            id: 7,
-            gageId: 'GAGE-007',
-            name: 'Pressure Transmitter',
-            type: 'Pressure',
-            instrumentUsed: 'Pressure Standard',
-            instrumentId: 'INST-002',
-            calibrationType: 'inhouse',
-            startedDate: '2024-01-24',
-            technician: 'John Doe',
-            progress: '50%',
-            estimatedCompletion: '2024-01-25 16:00',
-            status: 'in-progress'
-        }
-    ];
-
-    // Mock data for pending calibrations
-    const mockPendingCalibrations = [
-        {
-            id: 8,
-            gageId: 'GAGE-008',
-            name: 'Thermocouple',
-            type: 'Temperature',
-            instrumentRequired: 'Temperature Bath',
-            instrumentId: 'INST-003',
-            calibrationType: 'inhouse',
-            scheduledDate: '2024-01-30',
-            reason: 'Awaiting instrument availability',
-            status: 'pending'
-        },
-        {
-            id: 9,
-            gageId: 'GAGE-009',
-            name: 'Torque Wrench',
-            type: 'Torque',
-            instrumentRequired: 'Torque Tester',
-            instrumentId: 'INST-004',
-            calibrationType: 'inhouse',
-            scheduledDate: '2024-01-31',
-            reason: 'Equipment under maintenance',
-            status: 'pending'
-        }
-    ];
-
-    // Mock data for completed calibrations
-    const mockCompletedCalibrations = [
-        {
-            id: 10,
-            gageId: 'GAGE-010',
-            name: 'pH Meter',
-            type: 'pH',
-            instrumentUsed: 'pH Calibrator',
-            calibrationType: 'inhouse',
-            completedDate: new Date().toISOString().split('T')[0],
-            technician: user?.name || 'You',
-            result: 'Pass',
-            certificateNo: 'CERT-001-2024',
-            status: 'completed'
-        },
-        {
-            id: 11,
-            gageId: 'GAGE-011',
-            name: 'Flow Meter',
-            type: 'Flow',
-            instrumentUsed: 'Flow Calibrator',
-            calibrationType: 'inhouse',
-            completedDate: new Date().toISOString().split('T')[0],
-            technician: 'Jane Smith',
-            result: 'Pass',
-            certificateNo: 'CERT-002-2024',
-            status: 'completed'
-        },
-        {
-            id: 12,
-            gageId: 'GAGE-012',
-            name: 'Multimeter',
-            type: 'Electrical',
-            instrumentUsed: 'Multifunction Calibrator',
-            calibrationType: 'inhouse',
-            completedDate: '2024-01-22',
-            technician: user?.name || 'You',
-            result: 'Fail',
-            certificateNo: 'CERT-003-2024',
-            status: 'completed'
-        }
-    ];
-
-    // Mock data for available instruments
-    const mockAvailableInstruments = [
-        {
-            id: 'INST-001',
-            name: 'Master Calibrator',
-            type: 'Length',
-            status: 'available',
-            lastCalibration: '2024-01-10',
-            nextCalibrationDue: '2024-07-10',
-            location: 'Lab A',
-            currentUser: null
-        },
-        {
-            id: 'INST-002',
-            name: 'Pressure Standard',
-            type: 'Pressure',
-            status: 'in-use',
-            lastCalibration: '2024-01-05',
-            nextCalibrationDue: '2024-07-05',
-            location: 'Lab B',
-            currentUser: 'John Doe'
-        },
-        {
-            id: 'INST-003',
-            name: 'Temperature Bath',
-            type: 'Temperature',
-            status: 'available',
-            lastCalibration: '2024-01-12',
-            nextCalibrationDue: '2024-07-12',
-            location: 'Lab C',
-            currentUser: null
-        },
-        {
-            id: 'INST-004',
-            name: 'Torque Tester',
-            type: 'Torque',
-            status: 'maintenance',
-            lastCalibration: '2023-12-20',
-            nextCalibrationDue: '2024-06-20',
-            location: 'Lab A',
-            currentUser: null
-        },
-        {
-            id: 'INST-005',
-            name: 'Flow Calibrator',
-            type: 'Flow',
-            status: 'available',
-            lastCalibration: '2024-01-08',
-            nextCalibrationDue: '2024-07-08',
-            location: 'Lab B',
-            currentUser: null
-        }
-    ];
-
+    // Load data when component starts
     useEffect(() => {
         fetchDashboardData();
     }, []);
 
+    // Main function to get all data
     const fetchDashboardData = async () => {
         setLoading(true);
         try {
-            // Simulate real API fetch → replace with actual API later
-            setTimeout(() => {
-                setScheduledGages(mockScheduledGages.filter(g => g.calibrationType === 'inhouse'));
-                setInProgressCalibrations(mockInProgressCalibrations.filter(g => g.calibrationType === 'inhouse'));
-                setPendingCalibrations(mockPendingCalibrations.filter(g => g.calibrationType === 'inhouse'));
-                setCompletedCalibrations(mockCompletedCalibrations.filter(g => g.calibrationType === 'inhouse'));
-                setAvailableInstruments(mockAvailableInstruments);
-                setLoading(false);
-            }, 800);
+            console.log("Fetching dashboard data...");
+            
+            // 1. Get scheduled gages (gages that need calibration)
+            const gagesNeedingCalibration = await fetchGagesNeedingCalibration();
+            console.log("Gages needing calibration:", gagesNeedingCalibration);
+            const scheduled = gagesNeedingCalibration.map(apiGageToScheduled);
+            setScheduledGages(scheduled);
+            
+            // 2. Get in-progress calibrations (gages with status IN_USE)
+            const inProgressData = await fetchGagesByStatus('IN_USE');
+            const inProgress = inProgressData.map(gage => ({
+                id: gage.id,
+                gageId: gage.serialNumber || `GAGE-${gage.id}`,
+                name: gage.gageType?.name || 'Unknown Gage',
+                type: gage.gageSubType?.name || 'Dimensional',
+                instrumentUsed: gage.inhouseCalibrationMachine?.machineName || 'Standard Calibrator',
+                instrumentId: gage.inhouseCalibrationMachine?.instrumentCode || `INST-${gage.inhouseCalibrationMachine?.id || '001'}`,
+                calibrationType: gage.inhouseCalibrationMachine ? 'inhouse' : 'external',
+                startedDate: new Date().toISOString().split('T')[0],
+                technician: user?.name || 'You',
+                progress: '75%',
+                estimatedCompletion: new Date(Date.now() + 86400000).toISOString().split('T')[0] + ' 14:00',
+                status: 'in-progress',
+                originalGage: gage
+            }));
+            setInProgressCalibrations(inProgress);
+            
+            // 3. Get pending calibrations (gages with overdue calibration)
+            const allGages = await fetchAllGages();
+            const today = new Date();
+            const pending = allGages
+                .filter(gage => {
+                    if (!gage.nextCalibrationDate) return false;
+                    const dueDate = new Date(gage.nextCalibrationDate);
+                    return dueDate < today; // Overdue
+                })
+                .map(gage => ({
+                    id: gage.id,
+                    gageId: gage.serialNumber || `GAGE-${gage.id}`,
+                    name: gage.gageType?.name || 'Unknown Gage',
+                    type: gage.gageSubType?.name || 'Dimensional',
+                    instrumentRequired: gage.inhouseCalibrationMachine?.machineName || 'Standard Calibrator',
+                    instrumentId: gage.inhouseCalibrationMachine?.instrumentCode || `INST-${gage.inhouseCalibrationMachine?.id || '001'}`,
+                    calibrationType: gage.inhouseCalibrationMachine ? 'inhouse' : 'external',
+                    scheduledDate: gage.nextCalibrationDate,
+                    reason: 'Calibration overdue',
+                    status: 'pending',
+                    originalGage: gage
+                }));
+            setPendingCalibrations(pending);
+            
+            // 4. Get completed calibrations (mock data for now)
+            const completed = [
+                {
+                    id: 10,
+                    gageId: 'MIT-CAL-001',
+                    name: 'Calipers',
+                    type: 'Dimensional',
+                    instrumentUsed: 'Master Calibrator',
+                    calibrationType: 'inhouse',
+                    completedDate: new Date().toISOString().split('T')[0],
+                    technician: user?.name || 'You',
+                    result: 'Pass',
+                    certificateNo: 'CERT-001-2024',
+                    status: 'completed'
+                },
+                {
+                    id: 11,
+                    gageId: 'STR-MIC-001',
+                    name: 'Micrometers',
+                    type: 'Dimensional',
+                    instrumentUsed: 'Precision Tester',
+                    calibrationType: 'inhouse',
+                    completedDate: new Date().toISOString().split('T')[0],
+                    technician: 'Jane Smith',
+                    result: 'Pass',
+                    certificateNo: 'CERT-002-2024',
+                    status: 'completed'
+                }
+            ];
+            setCompletedCalibrations(completed);
+            
+            // 5. Get available calibration machines
+            const machines = await fetchCalibrationMachines();
+            const instruments = machines.map(machine => ({
+                id: machine.id,
+                name: machine.machineName,
+                type: machine.gageTypeName,
+                status: machine.status?.toLowerCase() || 'available',
+                lastCalibration: machine.lastCalibration,
+                nextCalibrationDue: machine.nextCalibrationDue,
+                location: machine.location,
+                currentUser: null,
+                originalMachine: machine
+            }));
+            setAvailableInstruments(instruments);
+            
+            console.log("Data loaded successfully!");
+            setLoading(false);
+            
         } catch (error) {
-            console.error('Error fetching calibration data:', error);
+            console.error("Error loading data:", error);
+            // If API fails, use mock data
+            loadMockData();
             setLoading(false);
         }
     };
 
-    // Stats calculation
+    // Fallback mock data if API fails
+    const loadMockData = () => {
+        console.log("Using mock data...");
+        
+        const mockScheduled = [
+            {
+                id: 2,
+                gageId: 'STR-MIC-001',
+                name: 'Micrometers',
+                type: 'Dimensional',
+                instrumentRequired: 'boreset',
+                instrumentId: 'INST-001',
+                calibrationType: 'inhouse',
+                scheduledDate: '2026-01-24',
+                dueDate: '2026-12-08',
+                priority: 'Medium',
+                status: 'scheduled',
+                location: 'LAB',
+                requestedBy: 'System',
+                requestDate: '2024-01-20',
+                technician: null,
+                originalGage: { id: 2, serialNumber: 'STR-MIC-001' }
+            },
+            {
+                id: 8,
+                gageId: '330',
+                name: 'Micrometers',
+                type: 'Mechanical',
+                instrumentRequired: 'boreset',
+                instrumentId: 'INST-001',
+                calibrationType: 'inhouse',
+                scheduledDate: '2026-01-24',
+                dueDate: '2026-01-09',
+                priority: 'Low',
+                status: 'scheduled',
+                location: 'WAREHOUSE',
+                requestedBy: 'System',
+                requestDate: '2024-01-21',
+                technician: null,
+                originalGage: { id: 8, serialNumber: '330' }
+            }
+        ];
+        
+        const mockInProgress = [
+            {
+                id: 6,
+                gageId: '6769micro',
+                name: 'Micrometers',
+                type: 'Mechanical',
+                instrumentUsed: 'Master Calibrator',
+                instrumentId: 'INST-001',
+                calibrationType: 'inhouse',
+                startedDate: new Date().toISOString().split('T')[0],
+                technician: user?.name || 'You',
+                progress: '75%',
+                estimatedCompletion: new Date(Date.now() + 86400000).toISOString().split('T')[0] + ' 14:00',
+                status: 'in-progress',
+                originalGage: { id: 6, serialNumber: '6769micro' }
+            }
+        ];
+        
+        const mockPending = [
+            {
+                id: 4,
+                gageId: '001',
+                name: 'Calipers',
+                type: 'Dimensional',
+                instrumentRequired: 'Standard Calibrator',
+                instrumentId: 'INST-002',
+                calibrationType: 'inhouse',
+                scheduledDate: '2025-12-25',
+                reason: 'Calibration overdue',
+                status: 'pending',
+                originalGage: { id: 4, serialNumber: '001' }
+            }
+        ];
+        
+        const mockInstruments = [
+            {
+                id: '1',
+                name: 'boreset',
+                type: 'Calipers',
+                status: 'available',
+                lastCalibration: '2024-01-10',
+                nextCalibrationDue: '2024-07-10',
+                location: 'Lab',
+                currentUser: null
+            }
+        ];
+        
+        setScheduledGages(mockScheduled);
+        setInProgressCalibrations(mockInProgress);
+        setPendingCalibrations(mockPending);
+        setCompletedCalibrations([
+            {
+                id: 10,
+                gageId: 'MIT-CAL-001',
+                name: 'Calipers',
+                type: 'Dimensional',
+                instrumentUsed: 'Master Calibrator',
+                calibrationType: 'inhouse',
+                completedDate: new Date().toISOString().split('T')[0],
+                technician: user?.name || 'You',
+                result: 'Pass',
+                certificateNo: 'CERT-001-2024',
+                status: 'completed'
+            }
+        ]);
+        setAvailableInstruments(mockInstruments);
+    };
+
+    // Calculate statistics
     const stats = {
         scheduled: scheduledGages.length,
         inProgress: inProgressCalibrations.length,
         pending: pendingCalibrations.length,
-        completedToday: completedCalibrations.filter(g =>
+        completedToday: completedCalibrations.filter(g => 
             g.completedDate === new Date().toISOString().split('T')[0]
         ).length,
         availableInstruments: availableInstruments.filter(i => i.status === 'available').length
     };
 
-    // Action handlers
-    const handleStartCalibration = (gageId) => {
+    // Start calibration
+    const handleStartCalibration = async (gageId) => {
         const gage = scheduledGages.find(g => g.gageId === gageId);
         if (gage) {
-            setScheduledGages(prev => prev.filter(g => g.gageId !== gageId));
-            setInProgressCalibrations(prev => [...prev, {
-                ...gage,
-                status: 'in-progress',
-                startedDate: new Date().toISOString().split('T')[0],
-                technician: user?.name || 'You',
-                progress: '0%'
-            }]);
-            alert(`Started calibration for ${gageId}`);
+            try {
+                // Update status in backend
+                await updateGageStatus(gage.originalGage.id, 'IN_USE');
+                
+                // Update local state
+                setScheduledGages(prev => prev.filter(g => g.gageId !== gageId));
+                setInProgressCalibrations(prev => [...prev, {
+                    ...gage,
+                    status: 'in-progress',
+                    startedDate: new Date().toISOString().split('T')[0],
+                    technician: user?.name || 'You',
+                    progress: '0%'
+                }]);
+                
+                alert(`Started calibration for ${gageId}`);
+            } catch (error) {
+                console.error('Failed to start calibration:', error);
+                alert('Failed to start calibration. Please try again.');
+            }
         }
     };
 
-    const handleCompleteCalibration = (gageId) => {
+    // Complete calibration
+    const handleCompleteCalibration = async (gageId) => {
         const gage = inProgressCalibrations.find(g => g.gageId === gageId);
         if (gage) {
-            setInProgressCalibrations(prev => prev.filter(g => g.gageId !== gageId));
-            setCompletedCalibrations(prev => [...prev, {
-                ...gage,
-                status: 'completed',
-                completedDate: new Date().toISOString().split('T')[0],
-                result: Math.random() > 0.2 ? 'Pass' : 'Fail',
-                certificateNo: `CERT-${Math.floor(Math.random() * 1000)}-${new Date().getFullYear()}`
-            }]);
-            alert(`Completed calibration for ${gageId}`);
+            try {
+                // Update status in backend
+                await updateGageStatus(gage.originalGage.id, 'ACTIVE');
+                
+                // Update local state
+                setInProgressCalibrations(prev => prev.filter(g => g.gageId !== gageId));
+                setCompletedCalibrations(prev => [...prev, {
+                    ...gage,
+                    status: 'completed',
+                    completedDate: new Date().toISOString().split('T')[0],
+                    result: Math.random() > 0.2 ? 'Pass' : 'Fail',
+                    certificateNo: `CERT-${Math.floor(Math.random() * 1000)}-${new Date().getFullYear()}`
+                }]);
+                
+                alert(`Completed calibration for ${gageId}`);
+            } catch (error) {
+                console.error('Failed to complete calibration:', error);
+                alert('Failed to complete calibration. Please try again.');
+            }
         }
     };
 
+    // Assign gage to technician
     const handleAssignToMe = (gageId) => {
         const gage = scheduledGages.find(g => g.gageId === gageId);
         if (gage) {
@@ -319,6 +341,7 @@ function LabTechnicianDashboard({ user }) {
         }
     };
 
+    // Reschedule calibration
     const handleReschedule = (gageId) => {
         const newDate = prompt(`Enter new date for ${gageId} (YYYY-MM-DD):`);
         if (newDate) {
@@ -331,14 +354,13 @@ function LabTechnicianDashboard({ user }) {
         }
     };
 
+    // Refresh all data
     const refreshData = () => {
         setLoading(true);
-        setTimeout(() => {
-            fetchDashboardData();
-        }, 800);
+        fetchDashboardData();
     };
 
-    // Render tab content
+    // Render scheduled gages table
     const renderScheduledGages = () => (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
@@ -348,88 +370,86 @@ function LabTechnicianDashboard({ user }) {
                 </h3>
                 <span className="text-sm text-gray-500">{stats.scheduled} items</span>
             </div>
-            <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Gage ID
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Name
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Type
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Scheduled Date
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Priority
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Actions
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                        {scheduledGages.map((gage) => (
-                            <tr key={gage.id} className="hover:bg-gray-50">
-                                <td className="px-4 py-3">
-                                    <span className="font-medium text-gray-900">{gage.gageId}</span>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <div>
-                                        <span className="text-gray-700">{gage.name}</span>
-                                        <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
-                                            <MapPin size={12} />
-                                            {gage.location}
-                                        </div>
-                                    </div>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <span className="text-gray-700">{gage.type}</span>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <div className="flex items-center gap-1">
-                                        <Calendar size={14} className="text-gray-400" />
-                                        <span className="text-gray-700">{gage.scheduledDate}</span>
-                                    </div>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${gage.priority === 'High' ? 'bg-red-100 text-red-800' :
-                                            gage.priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
-                                                'bg-green-100 text-green-800'
-                                        }`}>
-                                        {gage.priority}
-                                    </span>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <div className="flex flex-col gap-2">
-                                        <button
-                                            onClick={() => handleStartCalibration(gage.gageId)}
-                                            className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors flex items-center justify-center gap-1"
-                                        >
-                                            <PlayCircle size={14} />
-                                            Start
-                                        </button>
-                                        <button
-                                            onClick={() => handleAssignToMe(gage.gageId)}
-                                            className="px-3 py-1.5 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 transition-colors flex items-center justify-center gap-1"
-                                        >
-                                            <User size={14} />
-                                            Assign to Me
-                                        </button>
-                                    </div>
-                                </td>
+            
+            {scheduledGages.length === 0 ? (
+                <div className="text-center py-8 bg-white rounded-lg border border-gray-200">
+                    <CalendarCheck size={48} className="mx-auto text-gray-400 mb-3" />
+                    <h3 className="text-gray-900 font-medium">No scheduled calibrations</h3>
+                    <p className="text-gray-500 text-sm mt-1">All gages are up to date!</p>
+                </div>
+            ) : (
+                <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gage ID</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Scheduled Date</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Priority</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                            {scheduledGages.map((gage) => (
+                                <tr key={gage.id} className="hover:bg-gray-50">
+                                    <td className="px-4 py-3">
+                                        <span className="font-medium text-gray-900">{gage.gageId}</span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div>
+                                            <span className="text-gray-700">{gage.name}</span>
+                                            <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                                                <MapPin size={12} />
+                                                {gage.location}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <span className="text-gray-700">{gage.type}</span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div className="flex items-center gap-1">
+                                            <Calendar size={14} className="text-gray-400" />
+                                            <span className="text-gray-700">{gage.scheduledDate}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${gage.priority === 'High' ? 'bg-red-100 text-red-800' :
+                                                gage.priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
+                                                    'bg-green-100 text-green-800'
+                                            }`}>
+                                            {gage.priority}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div className="flex flex-col gap-2">
+                                            <button
+                                                onClick={() => handleStartCalibration(gage.gageId)}
+                                                className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors flex items-center justify-center gap-1"
+                                            >
+                                                <PlayCircle size={14} />
+                                                Start
+                                            </button>
+                                            <button
+                                                onClick={() => handleAssignToMe(gage.gageId)}
+                                                className="px-3 py-1.5 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 transition-colors flex items-center justify-center gap-1"
+                                            >
+                                                <User size={14} />
+                                                Assign to Me
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
         </div>
     );
 
+    // Render in-progress calibrations
     const renderInProgressCalibrations = () => (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
@@ -439,73 +459,83 @@ function LabTechnicianDashboard({ user }) {
                 </h3>
                 <span className="text-sm text-gray-500">{stats.inProgress} active</span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {inProgressCalibrations.map((calibration) => (
-                    <div key={calibration.id} className="bg-white rounded-lg shadow border border-gray-200 p-4">
-                        <div className="flex justify-between items-start mb-3">
-                            <div>
-                                <h4 className="font-semibold text-gray-800">{calibration.name}</h4>
-                                <p className="text-sm text-gray-500">{calibration.gageId}</p>
-                            </div>
-                            <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full font-medium">
-                                In Progress
-                            </span>
-                        </div>
-                        <div className="space-y-3 mb-4">
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm text-gray-500 flex items-center gap-1">
-                                    <Settings size={14} />
-                                    Instrument:
-                                </span>
-                                <span className="text-sm font-medium">{calibration.instrumentUsed}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm text-gray-500 flex items-center gap-1">
-                                    <User size={14} />
-                                    Technician:
-                                </span>
-                                <span className="text-sm font-medium">{calibration.technician}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm text-gray-500">Progress:</span>
-                                <div className="w-24 bg-gray-200 rounded-full h-2">
-                                    <div
-                                        className="bg-green-600 h-2 rounded-full transition-all duration-300"
-                                        style={{ width: calibration.progress }}
-                                    ></div>
+            
+            {inProgressCalibrations.length === 0 ? (
+                <div className="text-center py-8 bg-white rounded-lg border border-gray-200">
+                    <PlayCircle size={48} className="mx-auto text-gray-400 mb-3" />
+                    <h3 className="text-gray-900 font-medium">No active calibrations</h3>
+                    <p className="text-gray-500 text-sm mt-1">Start a calibration from the Scheduled tab</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {inProgressCalibrations.map((calibration) => (
+                        <div key={calibration.id} className="bg-white rounded-lg shadow border border-gray-200 p-4">
+                            <div className="flex justify-between items-start mb-3">
+                                <div>
+                                    <h4 className="font-semibold text-gray-800">{calibration.name}</h4>
+                                    <p className="text-sm text-gray-500">{calibration.gageId}</p>
                                 </div>
-                                <span className="text-sm font-medium ml-2">{calibration.progress}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm text-gray-500 flex items-center gap-1">
-                                    <Calendar size={14} />
-                                    Started:
+                                <span className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded-full font-medium">
+                                    In Progress
                                 </span>
-                                <span className="text-sm font-medium">{calibration.startedDate}</span>
+                            </div>
+                            <div className="space-y-3 mb-4">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm text-gray-500 flex items-center gap-1">
+                                        <Settings size={14} />
+                                        Instrument:
+                                    </span>
+                                    <span className="text-sm font-medium">{calibration.instrumentUsed}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm text-gray-500 flex items-center gap-1">
+                                        <User size={14} />
+                                        Technician:
+                                    </span>
+                                    <span className="text-sm font-medium">{calibration.technician}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm text-gray-500">Progress:</span>
+                                    <div className="w-24 bg-gray-200 rounded-full h-2">
+                                        <div
+                                            className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                                            style={{ width: calibration.progress }}
+                                        ></div>
+                                    </div>
+                                    <span className="text-sm font-medium ml-2">{calibration.progress}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm text-gray-500 flex items-center gap-1">
+                                        <Calendar size={14} />
+                                        Started:
+                                    </span>
+                                    <span className="text-sm font-medium">{calibration.startedDate}</span>
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => handleCompleteCalibration(calibration.gageId)}
+                                    className="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <CheckCircle size={16} />
+                                    Mark Complete
+                                </button>
+                                <button
+                                    onClick={() => alert(`View details for ${calibration.gageId}`)}
+                                    className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <FileText size={16} />
+                                    Details
+                                </button>
                             </div>
                         </div>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => handleCompleteCalibration(calibration.gageId)}
-                                className="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-                            >
-                                <CheckCircle size={16} />
-                                Mark Complete
-                            </button>
-                            <button
-                                onClick={() => alert(`View details for ${calibration.gageId}`)}
-                                className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
-                            >
-                                <FileText size={16} />
-                                Details
-                            </button>
-                        </div>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 
+    // Render pending calibrations
     const renderPendingCalibrations = () => (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
@@ -515,80 +545,80 @@ function LabTechnicianDashboard({ user }) {
                 </h3>
                 <span className="text-sm text-gray-500">{stats.pending} awaiting resources</span>
             </div>
-            <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Gage ID
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Name
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Instrument Required
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Reason
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Actions
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                        {pendingCalibrations.map((calibration) => (
-                            <tr key={calibration.id} className="hover:bg-gray-50">
-                                <td className="px-4 py-3">
-                                    <span className="font-medium text-gray-900">{calibration.gageId}</span>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <div>
-                                        <span className="text-gray-700">{calibration.name}</span>
-                                        <p className="text-xs text-gray-500">{calibration.type}</p>
-                                    </div>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <div className="flex items-center gap-2">
-                                        <Settings size={14} className="text-gray-400" />
-                                        <div>
-                                            <span className="text-gray-700">{calibration.instrumentRequired}</span>
-                                            <p className="text-xs text-gray-500">{calibration.instrumentId}</p>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <span className="inline-flex items-center px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs">
-                                        <AlertTriangle size={12} className="mr-1" />
-                                        {calibration.reason}
-                                    </span>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => setSidebarOpen(true)}
-                                            className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors flex items-center gap-1"
-                                        >
-                                            <Package size={14} />
-                                            Check Instruments
-                                        </button>
-                                        <button
-                                            onClick={() => handleReschedule(calibration.gageId)}
-                                            className="px-3 py-1.5 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 transition-colors flex items-center gap-1"
-                                        >
-                                            <Calendar size={14} />
-                                            Reschedule
-                                        </button>
-                                    </div>
-                                </td>
+            
+            {pendingCalibrations.length === 0 ? (
+                <div className="text-center py-8 bg-white rounded-lg border border-gray-200">
+                    <AlertTriangle size={48} className="mx-auto text-gray-400 mb-3" />
+                    <h3 className="text-gray-900 font-medium">No pending calibrations</h3>
+                    <p className="text-gray-500 text-sm mt-1">All calibrations are on schedule</p>
+                </div>
+            ) : (
+                <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gage ID</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Instrument Required</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                            {pendingCalibrations.map((calibration) => (
+                                <tr key={calibration.id} className="hover:bg-gray-50">
+                                    <td className="px-4 py-3">
+                                        <span className="font-medium text-gray-900">{calibration.gageId}</span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div>
+                                            <span className="text-gray-700">{calibration.name}</span>
+                                            <p className="text-xs text-gray-500">{calibration.type}</p>
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div className="flex items-center gap-2">
+                                            <Settings size={14} className="text-gray-400" />
+                                            <div>
+                                                <span className="text-gray-700">{calibration.instrumentRequired}</span>
+                                                <p className="text-xs text-gray-500">{calibration.instrumentId}</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <span className="inline-flex items-center px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs">
+                                            <AlertTriangle size={12} className="mr-1" />
+                                            {calibration.reason}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setSidebarOpen(true)}
+                                                className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors flex items-center gap-1"
+                                            >
+                                                <Package size={14} />
+                                                Check Instruments
+                                            </button>
+                                            <button
+                                                onClick={() => handleReschedule(calibration.gageId)}
+                                                className="px-3 py-1.5 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 transition-colors flex items-center gap-1"
+                                            >
+                                                <Calendar size={14} />
+                                                Reschedule
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
         </div>
     );
 
+    // Render completed calibrations
     const renderCompletedCalibrations = () => (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
@@ -607,88 +637,86 @@ function LabTechnicianDashboard({ user }) {
                     </button>
                 </div>
             </div>
-            <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Gage ID
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Completed Date
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Technician
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Result
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Certificate
-                            </th>
-                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Actions
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                        {completedCalibrations.map((calibration) => (
-                            <tr key={calibration.id} className="hover:bg-gray-50">
-                                <td className="px-4 py-3">
-                                    <div>
-                                        <span className="font-medium text-gray-900">{calibration.gageId}</span>
-                                        <p className="text-xs text-gray-500">{calibration.name}</p>
-                                    </div>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <div className="flex items-center gap-1">
-                                        <Calendar size={14} className="text-gray-400" />
-                                        <span className="text-gray-700">{calibration.completedDate}</span>
-                                    </div>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <div className="flex items-center gap-1">
-                                        <User size={14} className="text-gray-400" />
-                                        <span className="text-gray-700">{calibration.technician}</span>
-                                    </div>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${calibration.result === 'Pass'
-                                            ? 'bg-green-100 text-green-800'
-                                            : 'bg-red-100 text-red-800'
-                                        }`}>
-                                        {calibration.result === 'Pass' ? (
-                                            <CheckCircle size={12} className="mr-1" />
-                                        ) : (
-                                            <AlertTriangle size={12} className="mr-1" />
-                                        )}
-                                        {calibration.result}
-                                    </span>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <button className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1">
-                                        <FileText size={14} />
-                                        {calibration.certificateNo}
-                                    </button>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <div className="flex gap-2">
-                                        <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100">
-                                            View
-                                        </button>
-                                        <button className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
-                                            Reprint
-                                        </button>
-                                    </div>
-                                </td>
+            
+            {completedCalibrations.length === 0 ? (
+                <div className="text-center py-8 bg-white rounded-lg border border-gray-200">
+                    <CheckCircle size={48} className="mx-auto text-gray-400 mb-3" />
+                    <h3 className="text-gray-900 font-medium">No completed calibrations</h3>
+                    <p className="text-gray-500 text-sm mt-1">Complete a calibration to see it here</p>
+                </div>
+            ) : (
+                <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gage ID</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Completed Date</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Technician</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Result</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Certificate</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                            {completedCalibrations.map((calibration) => (
+                                <tr key={calibration.id} className="hover:bg-gray-50">
+                                    <td className="px-4 py-3">
+                                        <div>
+                                            <span className="font-medium text-gray-900">{calibration.gageId}</span>
+                                            <p className="text-xs text-gray-500">{calibration.name}</p>
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div className="flex items-center gap-1">
+                                            <Calendar size={14} className="text-gray-400" />
+                                            <span className="text-gray-700">{calibration.completedDate}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div className="flex items-center gap-1">
+                                            <User size={14} className="text-gray-400" />
+                                            <span className="text-gray-700">{calibration.technician}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${calibration.result === 'Pass'
+                                                ? 'bg-green-100 text-green-800'
+                                                : 'bg-red-100 text-red-800'
+                                            }`}>
+                                            {calibration.result === 'Pass' ? (
+                                                <CheckCircle size={12} className="mr-1" />
+                                            ) : (
+                                                <AlertTriangle size={12} className="mr-1" />
+                                            )}
+                                            {calibration.result}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <button className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1">
+                                            <FileText size={14} />
+                                            {calibration.certificateNo}
+                                        </button>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div className="flex gap-2">
+                                            <button className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100">
+                                                View
+                                            </button>
+                                            <button className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">
+                                                Reprint
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
         </div>
     );
 
+    // Show content based on active tab
     const renderTabContent = () => {
         switch (activeTab) {
             case 'scheduled':
@@ -704,11 +732,13 @@ function LabTechnicianDashboard({ user }) {
         }
     };
 
+    // Show loading spinner
     if (loading) {
         return (
             <div className="p-6">
                 <div className="flex justify-center items-center h-64">
                     <RefreshCw className="animate-spin text-blue-600" size={48} />
+                    <span className="ml-3 text-gray-600">Loading dashboard data...</span>
                 </div>
             </div>
         );
@@ -741,7 +771,7 @@ function LabTechnicianDashboard({ user }) {
                 </div>
             </div>
 
-            {/* Quick Stats */}
+            {/* Quick Stats Cards */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
                 <StatCard
                     title="Scheduled"
@@ -816,7 +846,7 @@ function LabTechnicianDashboard({ user }) {
                 {renderTabContent()}
             </div>
 
-            {/* Sidebar */}
+            {/* Sidebar for Instruments */}
             <MachineListSidebar
                 isOpen={sidebarOpen}
                 onClose={() => setSidebarOpen(false)}
@@ -825,7 +855,7 @@ function LabTechnicianDashboard({ user }) {
     );
 }
 
-// Helper Components
+// Small stat card component
 const StatCard = ({ title, value, subtitle, color, icon }) => (
     <div className="bg-white rounded-lg shadow border border-gray-200 p-4 hover:shadow-md transition-shadow">
         <div className="flex items-start">
