@@ -27,6 +27,7 @@ import CompleteCalibrationModal from './CompleteCalibrationModal';
 import ScheduleCalibrationModal from './ScheduleCalibrationModal';
 import InwardModal from './InwardModal';
 import Swal from 'sweetalert2';
+import CalibrationTypeModal from './CalibrationTypeModal';
 
 const GageDrawer = ({
   isOpen,
@@ -58,6 +59,51 @@ const GageDrawer = ({
   const [mediaFiles, setMediaFiles] = useState({}); // Store media files by history ID
   const [loadingMedia, setLoadingMedia] = useState({}); // Track loading state for each history record
 
+  const [showCalibrationTypeModal, setShowCalibrationTypeModal] = useState(false);
+  const [selectedGageForCalibration, setSelectedGageForCalibration] = useState(null);
+  const [calibrationTypeLoading, setCalibrationTypeLoading] = useState(false);
+
+  // Add this function to check if gage has in-house calibration machine
+const hasInHouseCalibrationMachine = (gage) => {
+  // Simply check if inhouseCalibrationMachine is not null
+  console.log('Checking in-house calibration machine for gage:', gage?.gageEntity.inhouseCalibrationMachine);
+  return gage?.gageEntity.inhouseCalibrationMachine !== null;
+
+};
+
+  const hasInHouseCalibrationMachineDetailed = (gage) => {
+    if (!gage?.inhouseCalibrationMachine) return false;
+
+    const machine = gage.inhouseCalibrationMachine;
+
+    // Check if machine has basic required properties
+    const isValidMachine = machine.id != null &&
+      machine.machineName != null &&
+      machine.machineName.trim() !== '';
+
+    return isValidMachine;
+  };
+
+  const isInHouseCalibrationAvailable = (gage) => {
+    if (!gage?.inhouseCalibrationMachine) return false;
+
+    const machine = gage.inhouseCalibrationMachine;
+
+    // Check for required properties
+    const hasRequiredFields = machine.id != null &&
+      machine.machineName != null &&
+      machine.machineName.trim() !== '';
+
+    // Check if machine is active (if status is available in your data)
+    // You might need to adjust this based on your actual status values
+    const isActive = machine.status === null ||
+      machine.status === 'ACTIVE' ||
+      machine.status === 'AVAILABLE' ||
+      machine.status === 'OPERATIONAL';
+
+    return hasRequiredFields && isActive;
+  };
+
   // Helper function to check if due date is within next 15 days
   const isDueSoon = (dueDate) => {
     if (!dueDate) return false;
@@ -65,6 +111,70 @@ const GageDrawer = ({
     return days !== null && days >= 0 && days <= 15;
   };
 
+  const handleInHouseCalibration = async (gage) => {
+    if (!gage?.id) {
+      console.error('No gage ID provided for in-house calibration');
+      Swal.fire({
+        title: 'Error',
+        text: 'Invalid instrument selection',
+        icon: 'error'
+      });
+      return;
+    }
+
+    try {
+      setCalibrationTypeLoading(true);
+
+      // Make API call for in-house calibration
+      const response = await fetch(`http://localhost:8080/api/calibration-manager/gages/${gage.id}/inhousecalibration`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.text();
+        Swal.fire({
+          title: 'Success!',
+          text: result || 'Gage status changed to IN_HOUSE successfully.',
+          icon: 'success',
+          timer: 2000,
+          showConfirmButton: false
+        });
+
+        // Close the modal and drawer
+        setShowCalibrationTypeModal(false);
+
+        // Refresh the gages list or trigger a callback
+        if (onInwardSuccess) {
+          onInwardSuccess();
+        }
+      } else {
+        const errorText = await response.text();
+        Swal.fire({
+          title: 'Error',
+          text: errorText || 'Failed to update gage status',
+          icon: 'error'
+        });
+      }
+    } catch (err) {
+      console.error('Error in in-house calibration:', err);
+      Swal.fire({
+        title: 'Error',
+        text: 'Failed to process in-house calibration request',
+        icon: 'error'
+      });
+    } finally {
+      setCalibrationTypeLoading(false);
+    }
+  };
+
+  // Add this function to handle the send gage button click
+  const handleSendGageClick = (gage) => {
+    setSelectedGageForCalibration(gage);
+    setShowCalibrationTypeModal(true);
+  };
   const handleInwardSubmit = async (formData, fileSummary) => {
     try {
       setIsLoading(true);
@@ -98,7 +208,7 @@ const GageDrawer = ({
           if (fileSummary?.inwardDate) inwardFormObj.start = fileSummary.inwardDate;
 
           // Add current logged-in user as attendee (best-effort)
-          inwardFormObj.attendees = [ getCurrentUserAttendee() ];
+          inwardFormObj.attendees = [getCurrentUserAttendee()];
 
           const eventObj = buildCalendarEvent(inwardFormObj, selectedGageForInward, 'Inward');
           await createCalendarEvent(eventObj);
@@ -136,7 +246,7 @@ const GageDrawer = ({
     setSelectedGageForInward(gage);
     setShowInwardModal(true);
   };
-  
+
   // Debug logging
   useEffect(() => {
     if (isOpen) {
@@ -178,7 +288,7 @@ const GageDrawer = ({
     }
     return '📎';
   };
-  
+
   const fetchMediaFiles = async (historyId) => {
     try {
       setLoadingMedia(prev => ({ ...prev, [historyId]: true }));
@@ -268,10 +378,10 @@ const GageDrawer = ({
     try {
       // Get user email from localStorage
       const userEmail = localStorage.getItem('email');
-      
+
       const resp = await fetch('http://localhost:8080/api/calendar/events', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'User-Email': userEmail
         },
@@ -398,7 +508,7 @@ const GageDrawer = ({
       setHistoryLoading(true);
       setHistoryError(null);
 
-         const response = await fetch(`http://localhost:8080/api/calibration-manager/gages/${gageId}/history`);
+      const response = await fetch(`http://localhost:8080/api/calibration-manager/gages/${gageId}/history`);
 
       if (!response.ok) {
         throw new Error(`Failed to fetch calibration history: ${response.status}`);
@@ -702,11 +812,10 @@ const GageDrawer = ({
         </button>
 
         {/* Hero Header */}
-        <div className={`rounded-2xl p-8 mb-8 ${
-          isOverdue ? 'bg-gradient-to-br from-red-50 to-red-100 border-red-200' :
+        <div className={`rounded-2xl p-8 mb-8 ${isOverdue ? 'bg-gradient-to-br from-red-50 to-red-100 border-red-200' :
           isDueSoon ? 'bg-gradient-to-br from-orange-50 to-amber-100 border-orange-200' :
-          'bg-gradient-to-br from-indigo-50 to-blue-50 border-blue-200'
-        } border-2 shadow-lg`}>
+            'bg-gradient-to-br from-indigo-50 to-blue-50 border-blue-200'
+          } border-2 shadow-lg`}>
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             <div>
               <div className="flex items-center gap-3 mb-3">
@@ -1028,13 +1137,12 @@ const GageDrawer = ({
                   onClick={() => handleScheduleClick(selectedGage)}
                   disabled={isLoading || !canSchedule(selectedGage)}
                   aria-disabled={isLoading || !canSchedule(selectedGage)}
-                  className={`flex items-center gap-2 px-5 py-3 rounded-xl font-medium shadow-md transition-all transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed ${
-                    canSchedule(selectedGage)
-                      ? isDueSoon 
-                        ? 'bg-gradient-to-r from-orange-600 to-red-500 hover:from-orange-700 hover:to-red-600 text-white animate-pulse' 
-                        : 'bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white'
-                      : 'bg-gray-100 text-gray-500'
-                  }`}
+                  className={`flex items-center gap-2 px-5 py-3 rounded-xl font-medium shadow-md transition-all transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed ${canSchedule(selectedGage)
+                    ? isDueSoon
+                      ? 'bg-gradient-to-r from-orange-600 to-red-500 hover:from-orange-700 hover:to-red-600 text-white animate-pulse'
+                      : 'bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white'
+                    : 'bg-gray-100 text-gray-500'
+                    }`}
                 >
                   <Calendar className="h-4 w-4" />
                   {isLoading ? 'Scheduling...' : (canSchedule(selectedGage) ? (isDueSoon ? 'SCHEDULE NOW' : 'Schedule Calibration') : 'Scheduling Disabled')}
@@ -1117,7 +1225,7 @@ const GageDrawer = ({
                     className="w-full pl-12 pr-4 py-3.5 bg-white/15 backdrop-blur-sm border-2 border-white/25 rounded-xl text-white placeholder-indigo-200 focus:bg-white/25 focus:border-white/40 focus:outline-none transition-all"
                   />
                 </div>
-                
+
                 {/* Urgent summary section - only for 'total' filter */}
                 {selectedFilter === 'total' && hasGages && (
                   <div className="mt-4 flex flex-wrap items-center gap-4">
@@ -1150,7 +1258,7 @@ const GageDrawer = ({
                         </span>
                       </div>
                     </div>
-                    
+
                     <button
                       onClick={() => {
                         // Show urgent items
@@ -1190,7 +1298,7 @@ const GageDrawer = ({
                       const daysUntilDue = g.dueDate ? daysUntil?.(g.dueDate) : null;
                       const isOverdue = daysUntilDue !== null && daysUntilDue < 0;
                       const dueSoon = !isOverdue && daysUntilDue !== null && daysUntilDue <= 15;
-                      
+
                       const { bg: priorityBg, text: priorityText, border: priorityBorder } = getPriorityBadge(g.priority);
                       const { bg: statusBg, text: statusText, dot: statusDot } = getStatusBadge(g.status);
 
@@ -1210,9 +1318,9 @@ const GageDrawer = ({
                           className={`bg-white rounded-2xl p-5 border-2 transition-all duration-200 cursor-pointer hover:-translate-y-0.5 ${
                             // Apply different border colors based on status
                             isOverdue ? 'border-red-300 shadow-red-100 hover:shadow-red-200' :
-                            dueSoon ? 'border-orange-300 shadow-orange-100 hover:shadow-orange-200' :
-                            'border-gray-200 hover:shadow-md'
-                          }`}
+                              dueSoon ? 'border-orange-300 shadow-orange-100 hover:shadow-orange-200' :
+                                'border-gray-200 hover:shadow-md'
+                            }`}
                           onClick={() => handleGageClick(g)}
                         >
                           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -1232,7 +1340,7 @@ const GageDrawer = ({
                                   <span className={`w-1.5 h-1.5 rounded-full ${statusDot}`}></span>
                                   {g.status || 'unknown'}
                                 </span>
-                                
+
                                 {/* Due Soon Indicator */}
                                 {dueSoon && (
                                   <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-bold border border-orange-200 flex items-center gap-1 animate-pulse">
@@ -1240,7 +1348,7 @@ const GageDrawer = ({
                                     DUE IN {daysUntilDue} DAYS
                                   </span>
                                 )}
-                                
+
                                 {/* Overdue Indicator */}
                                 {isOverdue && (
                                   <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold border border-red-200 flex items-center gap-1">
@@ -1248,7 +1356,7 @@ const GageDrawer = ({
                                     OVERDUE
                                   </span>
                                 )}
-                                
+
                                 {/* Regular time remaining (if not overdue or due soon) */}
                                 {timeRemainingText && !isOverdue && !dueSoon && (
                                   <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold border border-blue-200">
@@ -1265,7 +1373,7 @@ const GageDrawer = ({
                                   {g.dueDate || '—'}
                                 </p>
                                 {/* Show urgent notice for due soon items */}
-                                {dueSoon && selectedFilter !== 'outFor'  && (
+                                {dueSoon && selectedFilter !== 'outFor' && (
                                   <p className="text-xs text-orange-600 font-medium mt-1 flex items-center gap-1">
                                     <AlertTriangle className="h-3 w-3" />
                                     Schedule immediately
@@ -1285,38 +1393,51 @@ const GageDrawer = ({
                                     <ArrowLeft className="h-5 w-5" />
                                     Inward
                                   </button>
-                                ) : selectedFilter === 'scheduled' ? (
-                                  <button
-                                    title="Send Gage"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleSendGauge?.(g);
-                                    }}
-                                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                  >
-                                    Send Gage
-                                  </button>
-                                ) : (
-                                  <>
-                                    {canSchedule(g) && (
-                                      <button
-                                        title="Schedule Calibration"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleScheduleClick(g);
-                                        }}
-                                        className={`p-2 rounded-lg transition-colors flex items-center gap-1 ${
-                                          dueSoon 
-                                            ? 'bg-orange-500 text-white hover:bg-orange-600' 
-                                            : 'text-orange-600 hover:bg-orange-50'
-                                        }`}
-                                      >
-                                        <Calendar className="h-5 w-5" />
-                                        {dueSoon && <span className="text-sm font-medium">Urgent</span>}
-                                      </button>
+                                ) :
+                                  // selectedFilter === 'scheduled' ? (
+                                  //   <button
+                                  //     title="Send Gage"
+                                  //     onClick={(e) => {
+                                  //       e.stopPropagation();
+                                  //       handleSendGauge?.(g);
+                                  //     }}
+                                  //     className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                  //   >
+                                  //     Send Gage
+                                  //   </button>
+                                  // ) 
+                                  selectedFilter === 'scheduled' ? (
+                                    <button
+                                      title="Send Gage"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleSendGageClick(g); // Use the new handler
+                                      }}
+                                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                    >
+                                      Send Gage
+                                    </button>
+                                  )
+                                    : (
+                                      <>
+                                        {canSchedule(g) && (
+                                          <button
+                                            title="Schedule Calibration"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleScheduleClick(g);
+                                            }}
+                                            className={`p-2 rounded-lg transition-colors flex items-center gap-1 ${dueSoon
+                                              ? 'bg-orange-500 text-white hover:bg-orange-600'
+                                              : 'text-orange-600 hover:bg-orange-50'
+                                              }`}
+                                          >
+                                            <Calendar className="h-5 w-5" />
+                                            {dueSoon && <span className="text-sm font-medium">Urgent</span>}
+                                          </button>
+                                        )}
+                                      </>
                                     )}
-                                  </>
-                                )}
                               </div>
                             </div>
                           </div>
@@ -1359,6 +1480,53 @@ const GageDrawer = ({
         onSubmit={handleInwardSubmit}
         onSuccess={onInwardSuccess}
         isLoading={isLoading}
+      />
+
+      {/* <CalibrationTypeModal
+        isOpen={showCalibrationTypeModal}
+        onClose={() => {
+          setShowCalibrationTypeModal(false);
+          setSelectedGageForCalibration(null);
+        }}
+        onSelectInHouse={() => {
+          if (selectedGageForCalibration) {
+            handleInHouseCalibration(selectedGageForCalibration);
+          }
+        }}
+        onSelectOutService={() => {
+          // Use the existing handleSendGauge function for out-service
+          if (selectedGageForCalibration && handleSendGauge) {
+            handleSendGauge(selectedGageForCalibration);
+            setShowCalibrationTypeModal(false);
+            setSelectedGageForCalibration(null);
+          }
+        }}
+        isLoading={calibrationTypeLoading}
+        hasInHouseMachine={hasInHouseCalibrationMachine(selectedGageForCalibration)}
+      /> */}
+
+      // In GageDrawer.jsx, update the CalibrationTypeModal usage:
+      <CalibrationTypeModal
+        isOpen={showCalibrationTypeModal}
+        onClose={() => {
+          setShowCalibrationTypeModal(false);
+          setSelectedGageForCalibration(null);
+        }}
+        onSelectInHouse={() => {
+          if (selectedGageForCalibration) {
+            handleInHouseCalibration(selectedGageForCalibration);
+          }
+        }}
+        onSelectOutService={() => {
+          if (selectedGageForCalibration && handleSendGauge) {
+            handleSendGauge(selectedGageForCalibration);
+            setShowCalibrationTypeModal(false);
+            setSelectedGageForCalibration(null);
+          }
+        }}
+        isLoading={calibrationTypeLoading}
+        gageData={selectedGageForCalibration} // Pass the entire gage object
+        hasInHouseMachine={hasInHouseCalibrationMachine(selectedGageForCalibration)} // Use the function
       />
     </>
   );
